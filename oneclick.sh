@@ -15,7 +15,6 @@ echo " _______                                        __
       "
 echo "=================================="
 
-
 # === VARIABLES À MODIFIER ===
 HF_TOKEN="TON_TOKEN_HF_ICI"
 EMAIL="ton@email.com"
