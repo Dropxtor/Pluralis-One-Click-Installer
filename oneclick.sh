@@ -15,29 +15,55 @@ echo " _______                                        __
       "
 echo "=================================="
 
-# === VARIABLES À MODIFIER ===
+# === VARIABLES ===
 HF_TOKEN="TON_TOKEN_HF_ICI"
 EMAIL="ton@email.com"
 HOST_PORT=49200
 DASH_PORT=3000
 WORKDIR="/opt/pluralis"
 
-# 1) Prérequis
-apt update -y && apt upgrade -y
-apt install -y git curl wget jq build-essential docker.io nodejs npm
+# --- 1) Nettoyer les paquets conflictuels ---
+echo "🧹 Suppression des anciennes versions Node.js / npm / containerd..."
+sudo apt remove -y nodejs npm containerd containerd.io || true
+sudo apt autoremove -y
+sudo apt purge -y nodejs npm containerd containerd.io || true
+sudo apt-mark unhold nodejs npm || true
 
-# 2) Récupération node0
-mkdir -p $WORKDIR && cd $WORKDIR
+# --- 2) Mettre à jour le système ---
+echo "📦 Mise à jour des paquets..."
+sudo apt update && sudo apt upgrade -y
+
+# --- 3) Installer Node.js 18 proprement ---
+echo "🟢 Installation de Node.js 18 + npm..."
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs build-essential
+echo "✔ Node.js et npm installés : $(node -v) / $(npm -v)"
+
+# --- 4) Installer Docker + Docker Compose ---
+echo "🐳 Installation Docker + Docker Compose..."
+sudo apt install -y docker.io docker-compose
+sudo systemctl enable docker
+sudo systemctl start docker
+echo "✔ Docker : $(docker -v) / Docker Compose : $(docker-compose -v)"
+
+# --- 5) Préparer le répertoire de travail ---
+echo "📂 Création du dossier de travail..."
+sudo mkdir -p $WORKDIR
+sudo chown $USER:$USER $WORKDIR
+cd $WORKDIR
+
+# --- 6) Cloner node0 ---
 if [ ! -d node0 ]; then
+  echo "📥 Clonage du dépôt node0..."
   git clone https://github.com/PluralisResearch/node0.git
 fi
 
-# 3) Build image Docker
+# --- 7) Build Docker image ---
 cd node0
 docker build . -t pluralis_node0
 cd ..
 
-# 4) Lancer container node
+# --- 8) Lancer container node ---
 docker rm -f pluralis_node0 >/dev/null 2>&1 || true
 docker run -d --name pluralis_node0 \
   -e HF_TOKEN=$HF_TOKEN \
@@ -45,11 +71,12 @@ docker run -d --name pluralis_node0 \
   -p ${HOST_PORT}:${HOST_PORT} \
   pluralis_node0
 
-# 5) Installer dashboard interactif animé
+# --- 9) Installer dashboard interactif animé ---
 if [ ! -d dashboard ]; then
   mkdir dashboard && cd dashboard
   npm init -y
   npm install express socket.io
+
   cat > server.js <<'NODEJS'
 const express = require('express');
 const { exec } = require('child_process');
@@ -118,7 +145,7 @@ HTML
   cd ..
 fi
 
-# 6) Lancer dashboard
+# --- 10) Lancer dashboard ---
 pkill -f "node dashboard/server.js" || true
 nohup node dashboard/server.js --port $DASH_PORT > /var/log/pluralis_dashboard.log 2>&1 &
 
